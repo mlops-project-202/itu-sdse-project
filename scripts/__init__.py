@@ -1,1 +1,1 @@
-from Start import config  # noqa: F401
+from scripts import config  # noqa: F401

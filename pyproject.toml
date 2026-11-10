@@ -3,7 +3,7 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "Start"
+name = "itu-sdse-project"
 version = "0.0.1"
 description = "This is a short description of the project"
 authors = [
@@ -17,16 +17,19 @@ classifiers = [
 ]
 requires-python = "~=3.13.0"
 
+[tool.flit.module]
+name = "scripts"
+
 
 [tool.ruff]
 line-length = 99
-src = ["Start"]
-include = ["pyproject.toml", "Start/**/*.py"]
+src = ["scripts"]
+include = ["pyproject.toml", "scripts/**/*.py"]
 
 [tool.ruff.lint]
 extend-select = ["I"]  # Add import sorting
 
 [tool.ruff.lint.isort]
-known-first-party = ["Start"]
+known-first-party = ["scripts"]
 force-sort-within-sections = true
 

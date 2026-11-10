@@ -21,6 +21,22 @@ MODELS_DIR = PROJ_ROOT / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+# Vial images
+IMAGE_DATA_DIR = DATA_DIR / "images" / "raw"
+IMAGE_METADATA_PATH = DATA_DIR / "images" / "metadata.csv"
+
+# Artifacts loaded together with the model later
+ARTIFACTS_DIR = PROJ_ROOT / "artifacts"
+CLASS_NAMES_PATH = ARTIFACTS_DIR / "class_names.json"
+IMAGE_STATISTICS_PATH = ARTIFACTS_DIR / "image_statistics.json"
+
+# Preprocessing
+IMAGE_SIZE = (64, 64)
+TRANSFORM_MEAN = [0.485, 0.456, 0.406]  # ImageNet statistics
+TRANSFORM_STD = [0.229, 0.224, 0.225]
+BATCH_SIZE = 32
+RANDOM_STATE = 42
+
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135
 try:
