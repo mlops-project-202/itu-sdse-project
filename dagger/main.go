@@ -1,37 +1,44 @@
-// A generated module for ItuSdseProject functions
-//
-// This module has been generated via dagger init and serves as a reference to
-// basic module structure as you get started with Dagger.
-//
-// Two functions have been pre-created. You can modify, delete, or add to them,
-// as needed. They demonstrate usage of arguments and return types using simple
-// echo and grep commands. The functions can be called from the dagger CLI or
-// from one of the SDKs.
-//
-// The first line in this comment block is a short description line and the
-// rest is a long description with more detail on the module's purpose or usage,
-// if appropriate. All modules should have a short description.
-
-package main
+package main // Every Go file
 
 import (
-	"context"
 	"dagger/itu-sdse-project/internal/dagger"
-)
+) // Pulls other Dagger types (structs)
 
-type ItuSdseProject struct{}
+type ItuSdseProject struct {
+	Source *dagger.Directory
+} // The struct in question - way to group data
 
-// Returns a container that echoes whatever string argument is provided
-func (m *ItuSdseProject) ContainerEcho(stringArg string) *dagger.Container {
-	return dag.Container().From("alpine:latest").WithExec([]string{"echo", stringArg})
+func New(
+	// +defaultPath="/"
+	source *dagger.Directory,
+) *ItuSdseProject {
+	return &ItuSdseProject{Source: source}
+} // Constructor - runs before the other functions and establishes arguments for other functions, defaults path to root
+
+// Base: Python container with dependencies installed.
+func (m *ItuSdseProject) Base() *dagger.Container {
+	return dag.Container().
+		From("python:3.12-slim").
+		WithMountedCache("/root/.cache/pip", dag.CacheVolume("pip")).
+		WithWorkdir("/app").
+		WithFile("/app/requirements.txt", m.Source.File("requirements.txt")).
+		WithExec([]string{"pip", "install", "-r", "requirements.txt"}).
+		WithDirectory("/app", m.Source)
 }
 
-// Returns lines that match a pattern in the files of the provided Directory
-func (m *ItuSdseProject) GrepDir(ctx context.Context, directoryArg *dagger.Directory, pattern string) (string, error) {
-	return dag.Container().
-		From("alpine:latest").
-		WithMountedDirectory("/mnt", directoryArg).
-		WithWorkdir("/mnt").
-		WithExec([]string{"grep", "-R", pattern, "."}).
-		Stdout(ctx)
+// PullData: runs the dataset stage.
+func (m *ItuSdseProject) PullData() *dagger.Container {
+	return m.Base().
+		WithExec([]string{"python", "-m", "itu_sdse_project.dataset"})
+}
+
+// Train: runs training on top of the pulled data.
+func (m *ItuSdseProject) Train() *dagger.Container {
+	return m.PullData().
+		WithExec([]string{"python", "-m", "itu_sdse_project.modeling.train"})
+}
+
+// Model: returns just the artifacts directory.
+func (m *ItuSdseProject) Model() *dagger.Directory {
+	return m.Train().Directory("/app/artifacts")
 }
