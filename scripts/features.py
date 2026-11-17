@@ -18,17 +18,12 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import typer
 
-from scripts.config import (
-    ARTIFACTS_DIR,
-    BATCH_SIZE,
-    IMAGE_DATA_DIR,
-    IMAGE_METADATA_PATH,
-    IMAGE_SIZE,
-    PROCESSED_DATA_DIR,
-    RANDOM_STATE,
-    TRANSFORM_MEAN,
-    TRANSFORM_STD,
-)
+from scripts import config
+
+ARTIFACTS_DIR = config.project_root / config.artifact_dir
+IMAGE_DATA_DIR = config.project_root / config.image_data_dir
+IMAGE_METADATA_PATH = config.project_root / config.metadata_path
+PROCESSED_DATA_DIR = config.project_root / config.DATA_DIR / "processed"
 
 app = typer.Typer()
 
@@ -69,7 +64,7 @@ def calculate_image_statistics(data_loader: DataLoader) -> dict:
     return stats
 
 
-def define_transforms(image_size=IMAGE_SIZE, mean=TRANSFORM_MEAN, std=TRANSFORM_STD):
+def define_transforms(image_size=config.image_size, mean=config.transform_mean, std=config.transform_std):
     """Return (train_transforms, val_transforms). Augmentation is applied to training only."""
     train_transforms = transforms.Compose([
         transforms.Resize(image_size),
@@ -125,7 +120,9 @@ def load_image_dataset(metadata: pd.DataFrame, image_dir: Path) -> list[tuple[Pa
     return image_dataset
 
 
-def split_dataset(image_dataset, train_ratio=0.70, val_ratio=0.15, random_seed=RANDOM_STATE):
+def split_dataset(
+    image_dataset, train_ratio=config.train_ratio, val_ratio=config.val_ratio, random_seed=config.random_state
+):
     """Stratified split so both classes keep the same balance in every set.
 
     The test set gets whatever is left after train and val.
@@ -156,7 +153,7 @@ def split_dataset(image_dataset, train_ratio=0.70, val_ratio=0.15, random_seed=R
     return splits
 
 
-def make_dataloader(pairs, transform, batch_size=BATCH_SIZE, shuffle=False, num_workers=0):
+def make_dataloader(pairs, transform, batch_size=config.batch_size, shuffle=False, num_workers=0):
     """DataLoader over (image_path, label) pairs."""
     paths, labels = zip(*pairs) if pairs else ([], [])
     dataset = GlassVialDataset(list(paths), list(labels), transform)
@@ -175,7 +172,7 @@ def create_dataloaders(
     test_dataset,
     train_transforms,
     val_transforms,
-    batch_size=BATCH_SIZE,
+    batch_size=config.batch_size,
     num_workers=0,
 ):
     """Train loader (augmented, shuffled) plus val and test loaders (no augmentation)."""
@@ -194,7 +191,7 @@ def save_split(pairs, path: Path) -> None:
     pd.DataFrame(
         [(str(image_path), label) for image_path, label in pairs], columns=["image_path", "label"]
     ).to_csv(path, index=False)
-    
+
 
 @app.command()
 def main(
