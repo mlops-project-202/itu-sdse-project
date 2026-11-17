@@ -85,7 +85,7 @@ PROD_ENDPOINT = "https://mlops-itu-jtk.ondigitalocean.app"
 # Drift detection
 drift_default_days = 7
 drift_ks_pvalue_threshold = 0.05
-DRIFT_MEAN_DIFF_THRESHOLD = 0.1
+drift_mean_diff_threshold = 0.1
 
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135
