@@ -31,19 +31,22 @@ import torch.optim as optim
 from torchvision import transforms
 import typer
 
-from scripts.config import (artifact_dir, artifact_path, batch_size, class_names, class_names_path,
-                            download_max_workers, drift_baseline_stats_path, early_stop_patience,
-                            experiment_name, image_data_dir, image_size, image_statistics_path,
-                            inference_log_path, learning_rate, metadata_path, mlflow_artifact_location,
+from scripts.config import (artifact_path, batch_size, early_stop_patience,
+                            experiment_name, image_size, image_statistics_path,
+                            learning_rate, mlflow_artifact_location,
                             mlflow_state_dir, mlflow_tracking_uri, model_name, model_results_path,
                             num_classes, num_epochs, project_root, pytorch_model_path, random_state,
-                            s3_bucket, s3_endpoint, s3_image_prefix, s3_test_prefix, scheduler_patience,
-                            test_data_dir, test_metadata_path, test_ratio, threshold, train_ratio,
-                            training_run_name, transform_mean, transform_std, val_ratio)
+                            scheduler_patience, threshold, training_run_name)
 
-from scripts.dataset import (calculate_image_statistics, create_dataloaders, define_transforms,
-                             load_image_dataset, log_class_distribution, pull_data, 
-                             save_class_names, split_dataset)
+from scripts.features import (
+    calculate_image_statistics,
+    create_dataloaders,
+    define_transforms,
+    save_class_names,
+    split_dataset,
+)
+
+from scripts.dataset import (load_image_dataset, pull_data)
 
 app=typer.Typer()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -798,7 +801,6 @@ def main(
     if pull:
         pull_data()
     image_dataset = load_image_dataset()
-    log_class_distribution(image_dataset)
     save_class_names()
 
     # Preprocessing
