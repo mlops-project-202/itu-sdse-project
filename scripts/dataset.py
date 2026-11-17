@@ -13,13 +13,13 @@ from tqdm import tqdm
 import typer
 
 from scripts.config import (
-    IMAGE_DATA_DIR,
-    METADATA_PATH,
-    PROJ_ROOT,
-    S3_BUCKET,
-    S3_ENDPOINT,
-    TEST_DATA_DIR,
-    TEST_METADATA_PATH,
+    image_data_dir,
+    metadata_path,
+    project_root,
+    s3_bucket,
+    s3_endpoint,
+    test_data_dir,
+    test_metadata_path,
 )
  
 app = typer.Typer()
@@ -28,7 +28,7 @@ def setup_s3_client():
     """Create a boto3 S3 client configured for Hetzner's public bucket."""
     return boto3.client(
         's3',
-        endpoint_url= S3_ENDPOINT,
+        endpoint_url= s3_endpoint,
         aws_access_key_id='',
         aws_secret_access_key='',
         config=Config(signature_version=UNSIGNED)
@@ -40,7 +40,7 @@ def download_file(s3_client, key, output_path):
     if output_path.exists():
         return False
     try:
-        s3_client.download_file(S3_BUCKET, key, str(output_path))
+        s3_client.download_file(s3_bucket, key, str(output_path))
         return True
     except Exception as e:
         logger.warning(f"Failed to download {key}: {e}")
@@ -86,11 +86,11 @@ def pull_data():
     # sys.executable + "-m dvc" uses the same environment as this script;
     # cwd=PROJ_ROOT makes sure DVC runs from the project root
     
-    subprocess.run([sys.executable, "-m", "dvc", "pull"], check=True, cwd=PROJ_ROOT)
-    download_files_from_metadata(METADATA_PATH, IMAGE_DATA_DIR, "images/raw/")
-    download_files_from_metadata(TEST_METADATA_PATH, TEST_DATA_DIR, "test/")
+    subprocess.run([sys.executable, "-m", "dvc", "pull"], check=True, cwd=project_root)
+    download_files_from_metadata(metadata_path, image_data_dir, "images/raw/")
+    download_files_from_metadata(test_metadata_path, test_data_dir, "test/")
 
-def load_image_dataset(metadata_path=METADATA_PATH, image_data_dir=IMAGE_DATA_DIR):
+def load_image_dataset(metadata_path=metadata_path, image_data_dir=image_data_dir):
     """Load (image_path, label) pairs from the raw images and the metadata."""
     logger.info(f"Loading image dataset from {image_data_dir}")
     logger.info(f"Using metadata from {metadata_path}")
