@@ -67,7 +67,7 @@ model_name = "cnn_model"
 mlflow_tracking_uri = f"sqlite:///{mlflow_state_dir}/mlflow.db"
 mlflow_artifact_location = "./mlflow-state/artifacts"
 artifact_path = "model_pyfunc"
-TRAINING_RUN_NAME = "training_notebook"
+training_run_name = "training_notebook"
 
 # deployment
 # Where the exported servable model goes (this is what gets baked into the Docker image)
@@ -85,7 +85,7 @@ PROD_ENDPOINT = "https://mlops-itu-jtk.ondigitalocean.app"
 # Drift detection
 drift_default_days = 7
 drift_ks_pvalue_threshold = 0.05
-DRIFT_MEAN_DIFF_THRESHOLD = 0.1
+drift_mean_diff_threshold = 0.1
 
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135

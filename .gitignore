@@ -1,5 +1,14 @@
 # Data
-/data/
+# Ignore the images and generated data, but NOT the whole data/ folder: the
+# DVC pointer files (data/images/metadata.csv.dvc, data/test/metadata.csv.dvc)
+# must stay visible, otherwise `dvc pull` cannot find them. The metadata CSVs
+# themselves are ignored by the .gitignore files DVC created next to them.
+/data/images/raw/
+/data/test/*.jpg
+/data/raw/
+/data/interim/
+/data/processed/
+/data/external/
 
 # Mac OS-specific storage files
 .DS_Store
