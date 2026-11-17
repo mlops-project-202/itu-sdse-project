@@ -67,7 +67,7 @@ model_name = "cnn_model"
 mlflow_tracking_uri = f"sqlite:///{mlflow_state_dir}/mlflow.db"
 mlflow_artifact_location = "./mlflow-state/artifacts"
 artifact_path = "model_pyfunc"
-TRAINING_RUN_NAME = "training_notebook"
+training_run_name = "training_notebook"
 
 # deployment
 # Where the exported servable model goes (this is what gets baked into the Docker image)
