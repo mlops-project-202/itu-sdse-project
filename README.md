@@ -1,5 +1,72 @@
 # ITU BDS MLOPS'26 - Project (V2)
 
+## Setup: from a fresh clone to a loaded dataset
+
+Run every command from the project's root folder (`itu-sdse-project/`).
+
+### 1. Create the Python environment (Python 3.13 is required)
+
+Check whether you have conda:
+
+```bash
+conda --version
+```
+
+**Option A: you have conda**
+
+```bash
+conda create -n itu-sdse-project python=3.13 -y
+conda activate itu-sdse-project
+```
+
+The prompt should change from `(base)` to `(itu-sdse-project)`.
+
+**Option B: no conda.** Use Python's built-in `venv`. First check you have Python 3.13:
+
+```bash
+py -3.13 --version 
+```
+
+```bash
+py -3.13 -m venv .venv
+source .venv/Scripts/activate
+```
+
+### 2. Install the packages
+
+```bash
+pip install -r requirements.txt -r notebooks/requirements.txt
+```
+
+### 3. Check the environment
+
+```bash
+python --version  # must be 3.13
+python -c "import loguru, torch, torchvision, boto3, dvc; print('all good')"
+```
+
+### 4. Get the data
+
+```bash
+python -m scripts.dataset pull
+```
+
+### 5. Load the dataset
+
+```bash
+python -m scripts.dataset load
+```
+
+### Every time you open a new terminal
+
+Activate the environment again before running anything:
+
+```bash
+conda activate itu-sdse-project      # conda
+source .venv/bin/activate            # venv, Mac/Linux
+source .venv/Scripts/activate        # venv, Windows (Git Bash)
+```
+
 ## Task
 
 Based on the input provided (see below), fork the repository and restructure the code to adhere to the concepts and ideas you have seen throughout the course. The diagram below provides a detailed overview of the structure that the solution is expected to follow.
