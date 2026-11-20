@@ -46,23 +46,12 @@ from scripts.features import (
     load_split,
 )
 
+from scripts.tracking import (setup_mlflow_tracking)
+
+from scripts.modeling.predict import (export)
+
 app=typer.Typer()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-# MLflow setup
-def setup_mlflow_tracking(experiment_name=None):
-    """Point MLflow at the local state dir and create the experiment if needed."""
-    os.makedirs(mlflow_state_dir, exist_ok=True)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-
-    if experiment_name is None:
-        return
-
-    experiment = mlflow.get_experiment_by_name(experiment_name)
-    if experiment is None:
-        mlflow.create_experiment(experiment_name, artifact_location=mlflow_artifact_location)
-    mlflow.set_experiment(experiment_name)
 
 
 class SimpleCNN(nn.Module):
@@ -840,6 +829,8 @@ def main(
     logger.info(f"  Optimal threshold: {optimal_threshold:.4f}")
     logger.info(f"  Test F1-score: {test_results['f1_score']:.4f}")
     logger.info(f"  Registered model: {model_name} version {model_details.version} (Staging)")
+
+    export()
 
 
 if __name__ == "__main__":
