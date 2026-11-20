@@ -31,32 +31,24 @@ import torch.optim as optim
 from torchvision import transforms
 import typer
 
-from scripts.config import (artifact_path, batch_size, early_stop_patience,
-                            experiment_name, image_size, image_statistics_path,
-                            learning_rate, mlflow_artifact_location,
-                            mlflow_state_dir, mlflow_tracking_uri, model_name, model_results_path,
+from scripts.config import (artifact_dir, artifact_path, batch_size, drift_baseline_stats_path,
+                            early_stop_patience, experiment_name, image_size, inference_log_path,
+                            learning_rate, mlflow_artifact_location, mlflow_state_dir,
+                            mlflow_tracking_uri, model_name, model_results_path,
                             num_classes, num_epochs, project_root, pytorch_model_path, random_state,
-                            scheduler_patience, threshold, training_run_name)
+                            scheduler_patience, threshold, training_run_name, transform_mean,
+                            transform_std)
 
 from scripts.features import (
-    calculate_image_statistics,
+    PROCESSED_DATA_DIR,
     create_dataloaders,
     define_transforms,
-    save_class_names,
-    split_dataset,
+    load_split,
 )
-
-from scripts.dataset import (load_image_dataset, pull_data)
 
 app=typer.Typer()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# create artifact directories
-def create_directories():
-    os.makedirs("artifacts", exist_ok=True)
-    os.makedirs("mlflow-state", exist_ok=True)
-    os.makedirs("mlflow-state/artifacts", exist_ok=True)
-    os.makedirs("data/images/raw", exist_ok=True)
 
 # MLflow setup
 def setup_mlflow_tracking(experiment_name=None):
@@ -130,19 +122,9 @@ def train_cnn_model(train_loader, val_loader, num_epochs=num_epochs, learning_ra
     # Halve the learning rate when validation macro-F1 plateaus
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=scheduler_patience)
 
-    history = {
-        "train_loss": [],
-        "val_loss": [],
-        "train_accuracy": [],
-        "val_accuracy": [],
-        "train_f1": [],
-        "val_f1": [],
-        "val_f1_macro": [],
-        "best_val_f1_macro": 0.0,
-        "best_model_state": None,
-    }
-
-    epochs_without_improvement=0
+    best_val_f1_macro = 0.0
+    best_model_state = None
+    epochs_without_improvement = 0
     for epoch in range(num_epochs):
         model.train()
         train_running_loss = 0.0
@@ -204,52 +186,46 @@ def train_cnn_model(train_loader, val_loader, num_epochs=num_epochs, learning_ra
         epoch_val_f1 = f1_score(all_val_labels, all_val_preds, average='binary')
         epoch_val_f1_macro = f1_score(all_val_labels, all_val_preds, average='macro')
 
-        history["train_loss"].append(epoch_train_loss)
-        history["val_loss"].append(epoch_val_loss)
-        history["train_accuracy"].append(epoch_train_accuracy)
-        history["val_accuracy"].append(epoch_val_accuracy)
-        history["train_f1"].append(epoch_train_f1)
-        history["val_f1"].append(epoch_val_f1)
-        history["val_f1_macro"].append(epoch_val_f1_macro)
+        logger.info(
+            f"Epoch [{epoch + 1}/{num_epochs}] (lr={optimizer.param_groups[0]['lr']:.6f}): "
+            f"Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_accuracy:.4f} | "
+            f"Train F1: {epoch_train_f1:.4f} | Val Loss: {epoch_val_loss:.4f} | "
+            f"Val Acc: {epoch_val_accuracy:.4f} | Val F1: {epoch_val_f1:.4f} | "
+            f"Val Macro F1: {epoch_val_f1_macro:.4f}"
+        )
+
+        if mlflow.active_run():
+            mlflow.log_metric("train_loss", epoch_train_loss, step=epoch)
+            mlflow.log_metric("val_loss", epoch_val_loss, step=epoch)
+            mlflow.log_metric("train_accuracy", epoch_train_accuracy, step=epoch)
+            mlflow.log_metric("val_accuracy", epoch_val_accuracy, step=epoch)
+            mlflow.log_metric("train_f1_score", epoch_train_f1, step=epoch)
+            mlflow.log_metric("val_f1_score", epoch_val_f1, step=epoch)
+            mlflow.log_metric("val_f1_macro", epoch_val_f1_macro, step=epoch)
 
         scheduler.step(epoch_val_f1_macro)
 
-        if epoch_val_f1_macro > history["best_val_f1_macro"]:
-            history["best_val_f1_macro"] = epoch_val_f1_macro
+        if epoch_val_f1_macro > best_val_f1_macro:
+            best_val_f1_macro = epoch_val_f1_macro
             # Deep-copy the weights so the "best" state does not keep changing
-            history["best_model_state"] = {
+            best_model_state = {
                 key: value.detach().clone() for key, value in model.state_dict().items()
             }
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= early_stop_patience:
-                print(f"\nEarly stopping: no macro-F1 improvement for {early_stop_patience} consecutive epochs")
+                logger.info(
+                    f"Early stopping: no macro-F1 improvement for {early_stop_patience} consecutive epochs"
+                )
                 break
 
-        logger.info(
-                    f"Epoch [{epoch + 1}/{num_epochs}] (lr={optimizer.param_groups[0]['lr']:.6f}): "
-                    f"Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_accuracy:.4f} | "
-                    f"Train F1: {epoch_train_f1:.4f} | Val Loss: {epoch_val_loss:.4f} | "
-                    f"Val Acc: {epoch_val_accuracy:.4f} | Val F1: {epoch_val_f1:.4f} | "
-                    f"Val Macro F1: {epoch_val_f1_macro:.4f}"
-                )
-        
-        if mlflow.active_run():
-                    mlflow.log_metric("train_loss", epoch_train_loss, step=epoch)
-                    mlflow.log_metric("val_loss", epoch_val_loss, step=epoch)
-                    mlflow.log_metric("train_accuracy", epoch_train_accuracy, step=epoch)
-                    mlflow.log_metric("val_accuracy", epoch_val_accuracy, step=epoch)
-                    mlflow.log_metric("train_f1_score", epoch_train_f1, step=epoch)
-                    mlflow.log_metric("val_f1_score", epoch_val_f1, step=epoch)
-                    mlflow.log_metric("val_f1_macro", epoch_val_f1_macro, step=epoch)
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
 
-    if history["best_model_state"] is not None:
-        model.load_state_dict(history["best_model_state"])
+    logger.success(f"Best validation macro F1-score: {best_val_f1_macro:.4f}")
 
-    logger.success(f"Best validation macro F1-score: {history['best_val_f1_macro']:.4f}")
-
-    return model, history
+    return model
 
 
 def tune_threshold(model, val_loader, device=device):
@@ -365,7 +341,7 @@ def evaluate_cnn_model(model, test_loader, device=device, threshold=threshold):
     }
 
 def compute_baseline_statistics(
-    model, data_loader, device=DEVICE, feature_layer="fc1", threshold=THRESHOLD
+    model, data_loader, device=device, feature_layer="fc1", threshold=threshold
 ):
     """Compute baseline statistics for drift detection from a dataset."""
     logger.info(f"Computing baseline statistics for drift detection (layer: {feature_layer})")
@@ -473,9 +449,9 @@ def compute_baseline_statistics(
 
 def save_and_log_baseline(baseline_stats):
     """Write the drift baseline to disk and log it to the active MLflow run."""
-    with open(DRIFT_BASELINE_STATS_PATH, "w") as f:
+    with open(drift_baseline_stats_path, "w") as f:
         json.dump(baseline_stats, f, indent=2)
-    logger.info(f"Baseline statistics saved to {DRIFT_BASELINE_STATS_PATH}")
+    logger.info(f"Baseline statistics saved to {drift_baseline_stats_path}")
 
     image_stats = baseline_stats["image_statistics"]
     for key in ("mean_r", "mean_g", "mean_b", "std_r", "std_g", "std_b"):
@@ -486,7 +462,7 @@ def save_and_log_baseline(baseline_stats):
     confidence = baseline_stats["confidence_statistics"]
     mlflow.log_metric("baseline_confidence_mean", confidence["mean"])
     mlflow.log_metric("baseline_confidence_std", confidence["std"])
-    mlflow.log_artifact(DRIFT_BASELINE_STATS_PATH, "drift_detection")
+    mlflow.log_artifact(drift_baseline_stats_path, "drift_detection")
 
 
 # Serving wrapper
@@ -503,8 +479,8 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
         self,
         model=None,
         model_path=None,
-        log_path=Path(INFERENCE_LOG_PATH),
-        threshold=THRESHOLD,
+        log_path=Path(inference_log_path),
+        threshold=threshold,
     ):
         self.model = model
         self.model_path = model_path
@@ -514,9 +490,9 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
         # Transform for preprocessing images (same as training, no augmentation)
         self.transform = transforms.Compose(
             [
-                transforms.Resize(IMAGE_SIZE),
+                transforms.Resize(image_size),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=TRANSFORM_MEAN, std=TRANSFORM_STD),
+                transforms.Normalize(mean=transform_mean, std=transform_std),
             ]
         )
 
@@ -721,15 +697,14 @@ def save_model_artifacts(model, test_results, optimal_threshold):
     logger.info(f"Model results saved to {model_results_path}")
 
 
-def log_pyfunc_model(model):
+def log_pyfunc_model(model, threshold):
     """Log the wrapped model as the pyfunc model artifact of the active run."""
     # In the notebook the classes lived in __main__, so cloudpickle embedded them in
     # the model. Registering this module keeps that behaviour when the pipeline is
     # imported instead of run as a script: the exported model stays self-contained.
     cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
-    # As in the notebook, the wrapper is created with the default threshold.
-    wrapper = SimpleLoggingWrapper(model=model)
+    wrapper = SimpleLoggingWrapper(model=model, threshold=threshold)
     mlflow.pyfunc.log_model(artifact_path, python_model=wrapper)
     logger.info("Logged pyfunc model to the MLflow run")
 
@@ -785,27 +760,25 @@ def main(
     num_epochs: int = num_epochs,
     batch_size: int = batch_size,
     learning_rate: float = learning_rate,
-    pull: bool = typer.Option(True, help="Run `dvc pull` and download the images first."),
 ):
-    """Train, evaluate and register the vial image classifier."""
+    """Train, evaluate and register the vial image classifier.
+
+    Expects the splits from `python -m scripts.features` in data/processed/.
+    """
     warnings.filterwarnings("ignore")
 
     # All paths in the config are relative to the project root
     os.chdir(project_root)
+    os.makedirs(artifact_dir, exist_ok=True)
 
-    create_directories()
     setup_mlflow_tracking(experiment_name)
     logger.info(f"MLflow tracking URI: {mlflow.get_tracking_uri()}")
 
-    # Data
-    if pull:
-        pull_data()
-    image_dataset = load_image_dataset()
-    save_class_names()
-
-    # Preprocessing
+    # Data: the splits made by the features step
+    train_dataset, val_dataset, test_dataset = (
+        load_split(PROCESSED_DATA_DIR / f"{name}.csv") for name in ("train", "val", "test")
+    )
     train_transforms, val_transforms = define_transforms()
-    train_dataset, val_dataset, test_dataset = split_dataset(image_dataset)
     train_loader, val_loader, test_loader = create_dataloaders(
         train_dataset,
         val_dataset,
@@ -814,15 +787,6 @@ def main(
         val_transforms,
         batch_size=batch_size,
     )
-
-    image_stats = calculate_image_statistics(train_loader)
-    with open(image_statistics_path, "w") as f:
-        json.dump(image_stats, f, indent=2)
-    logger.info(f"Image statistics saved to {image_statistics_path}")
-
-    # Training
-    torch.manual_seed(random_state)
-    np.random.seed(random_state)
 
     if mlflow.active_run():
         mlflow.end_run()
@@ -837,20 +801,18 @@ def main(
         mlflow.log_param("image_size", f"{image_size[0]}x{image_size[1]}")
         mlflow.log_param("random_seed", random_state)
 
-        architecture = SimpleCNN()
-        mlflow.log_param("total_parameters", sum(p.numel() for p in architecture.parameters()))
-        mlflow.log_param(
-            "trainable_parameters",
-            sum(p.numel() for p in architecture.parameters() if p.requires_grad),
-        )
-
-        cnn_model, _ = train_cnn_model(
+        cnn_model = train_cnn_model(
             train_loader,
             val_loader,
             num_epochs=num_epochs,
             learning_rate=learning_rate,
             device=device,
             random_seed=random_state,
+        )
+        mlflow.log_param("total_parameters", sum(p.numel() for p in cnn_model.parameters()))
+        mlflow.log_param(
+            "trainable_parameters",
+            sum(p.numel() for p in cnn_model.parameters() if p.requires_grad),
         )
 
         # Tune threshold on the validation set, evaluate on the test set with it
@@ -868,7 +830,7 @@ def main(
         # Artifacts and registration
         save_model_artifacts(cnn_model, test_results, optimal_threshold)
         mlflow.log_param("classification_threshold", optimal_threshold)
-        log_pyfunc_model(cnn_model)
+        log_pyfunc_model(cnn_model, optimal_threshold)
         model_details = register_model(run.info.run_id)
 
     logger.success("TRAINING JOB COMPLETE")

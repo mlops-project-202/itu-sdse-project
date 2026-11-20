@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from pprint import pformat
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -34,9 +35,7 @@ from scripts.config import (
     experiment_name,
     export_dir,
     inference_log_path,
-    mlflow_artifact_location,
     mlflow_state_dir,
-    mlflow_tracking_uri,
     artifact_path,
     model_name,
     model_path,
@@ -48,6 +47,7 @@ from scripts.config import (
     upstream_host,
     upstream_port,
 )
+from scripts.modeling.train import setup_mlflow_tracking
 
 cli = typer.Typer()
 api = FastAPI(docs_url=None, openapi_url=None, redoc_url=None)
@@ -62,18 +62,6 @@ def _setup():
     os.chdir(project_root)
     os.makedirs(artifact_path, exist_ok=True)
     os.makedirs(mlflow_state_dir, exist_ok=True)
-
-
-def setup_mlflow_tracking(experiment_name=None):
-    """Point MLflow at the local state dir and create the experiment if needed."""
-    os.makedirs(mlflow_state_dir, exist_ok=True)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    if experiment_name is None:
-        return
-    experiment = mlflow.get_experiment_by_name(experiment_name)
-    if experiment is None:
-        mlflow.create_experiment(experiment_name, artifact_location=mlflow_artifact_location)
-    mlflow.set_experiment(experiment_name)
 
 
 # Model selection
@@ -468,18 +456,28 @@ def start_scoring_server(model_path=model_path):
             "--no-conda",
         ],
         env=env,
+        # Own process group: `mlflow models serve` starts uvicorn as a child, and
+        # terminating only the parent would leave uvicorn running on the port
+        start_new_session=True,
     )  # fmt: skip
-    atexit.register(lambda: proc.poll() is None and proc.terminate())
+    atexit.register(stop_scoring_server)
     _scoring_proc = proc
     logger.info(f"Scoring server starting on port {upstream_port}")
     return proc
 
 
 def stop_scoring_server():
-    if _scoring_proc is not None and _scoring_proc.poll() is None:
-        _scoring_proc.terminate()
+    """Stop the scoring server and the uvicorn process it started."""
+    if _scoring_proc is None or _scoring_proc.poll() is not None:
+        return
+    try:
+        os.killpg(_scoring_proc.pid, signal.SIGTERM)
         _scoring_proc.wait(timeout=10)
-        logger.info("Scoring server stopped")
+    except ProcessLookupError:
+        pass
+    except subprocess.TimeoutExpired:
+        os.killpg(_scoring_proc.pid, signal.SIGKILL)
+    logger.info("Scoring server stopped")
 
 
 def _upstream_health():
