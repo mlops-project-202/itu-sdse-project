@@ -44,10 +44,6 @@ test_metadata_path = test_data_dir + "/metadata.csv"
 # Object store (public Hetzner bucket)
 s3_endpoint = "https://itudsip.hel1.your-objectstorage.com"
 s3_bucket = "data"
-BASE_URL = f"{s3_endpoint}/{s3_bucket}"
-s3_image_prefix = "images/raw/"
-s3_test_prefix = "test/"
-download_max_workers = 8
 
 # Artifacts (relative to the project root)
 artifact_dir = "artifacts"
