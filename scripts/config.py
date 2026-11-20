@@ -14,7 +14,7 @@ min_date = "2024-01-01"
 # Training configuration
 num_epochs = 5
 batch_size = 32
-learning_rate = 0.003
+learning_rate = 0.0003
 threshold = 0.5
 early_stop_patience = 2
 scheduler_patience = 3
