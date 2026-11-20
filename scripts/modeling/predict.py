@@ -47,7 +47,7 @@ from scripts.config import (
     upstream_host,
     upstream_port,
 )
-from scripts.modeling.train import setup_mlflow_tracking
+from scripts.tracking import setup_mlflow_tracking
 
 cli = typer.Typer()
 api = FastAPI(docs_url=None, openapi_url=None, redoc_url=None)
