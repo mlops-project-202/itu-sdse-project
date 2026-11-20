@@ -9,33 +9,47 @@ type ItuSdseProject struct {
 } // The struct in question - way to group data
 
 func New(
+	// Project root. Local outputs are left out so every run starts clean and
+	// downloads/trains for real. .git stays in: DVC needs it to fetch the
+	// imported metadata CSVs.
 	// +defaultPath="/"
+	// +ignore=["data/images/raw", "data/test/*.jpg", "data/processed", "artifacts", "mlflow-state", "models/model", "model_pyfunc", ".dvc/cache", ".dvc/tmp", "**/__pycache__", ".ruff_cache", ".venv", "dagger"]
 	source *dagger.Directory,
 ) *ItuSdseProject {
 	return &ItuSdseProject{Source: source}
 } // Constructor - runs before the other functions and establishes arguments for other functions, defaults path to root
 
-// Base: Python container with dependencies installed.
+// Base: Python container with the project and its dependencies installed.
 func (m *ItuSdseProject) Base() *dagger.Container {
 	return dag.Container().
-		From("python:3.12-slim").
+		// pyproject.toml requires Python 3.13
+		From("python:3.13-slim").
 		WithMountedCache("/root/.cache/pip", dag.CacheVolume("pip")).
+		// CPU-only PyTorch: the default Linux wheel pulls in ~2 GB of CUDA libraries
+		WithEnvVariable("PIP_EXTRA_INDEX_URL", "https://download.pytorch.org/whl/cpu").
 		WithWorkdir("/app").
-		WithFile("/app/requirements.txt", m.Source.File("requirements.txt")).
-		WithExec([]string{"pip", "install", "-r", "requirements.txt"}).
-		WithDirectory("/app", m.Source)
+		// The whole project must be in place before installing: requirements.txt
+		// ends with `-e .`, which needs pyproject.toml and scripts/
+		WithDirectory("/app", m.Source).
+		WithExec([]string{"pip", "install", "-r", "requirements.txt"})
 }
 
-// PullData: runs the dataset stage.
+// PullData: metadata via DVC, then the images from the object store.
 func (m *ItuSdseProject) PullData() *dagger.Container {
 	return m.Base().
-		WithExec([]string{"python", "-m", "itu_sdse_project.dataset"})
+		WithExec([]string{"python", "-m", "scripts.dataset", "pull"})
 }
 
-// Train: runs training on top of the pulled data.
-func (m *ItuSdseProject) Train() *dagger.Container {
+// Features: train/val/test splits and the dataset artifacts.
+func (m *ItuSdseProject) Features() *dagger.Container {
 	return m.PullData().
-		WithExec([]string{"python", "-m", "itu_sdse_project.modeling.train"})
+		WithExec([]string{"python", "-m", "scripts.features"})
+}
+
+// Train: trains, evaluates and registers the model on top of the features.
+func (m *ItuSdseProject) Train() *dagger.Container {
+	return m.Features().
+		WithExec([]string{"python", "-m", "scripts.modeling.train"})
 }
 
 // Model: returns just the artifacts directory.
