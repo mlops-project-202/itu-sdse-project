@@ -13,3 +13,14 @@ scikit-learn
 tqdm
 typer
 -e .
+torch
+torchvision
+pillow
+mlflow
+cloudpickle
+boto3
+dvc
+scipy
+requests
+fastapi
+uvicorn
