@@ -193,6 +193,14 @@ def save_split(pairs, path: Path) -> None:
     ).to_csv(path, index=False)
 
 
+def load_split(path: Path) -> list[tuple[Path, int]]:
+    """Read a split csv written by save_split back into (image_path, label) pairs."""
+    if not Path(path).exists():
+        raise FileNotFoundError(f"Split not found at {path}. Run `python -m scripts.features` first.")
+    split = pd.read_csv(path)
+    return [(Path(image_path), int(label)) for image_path, label in zip(split["image_path"], split["label"])]
+
+
 @app.command()
 def main(
     metadata_path: Path = IMAGE_METADATA_PATH,
