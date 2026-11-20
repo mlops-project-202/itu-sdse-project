@@ -30,7 +30,7 @@ original_image_size = (1600, 768)
 num_classes = 2
 transform_mean = [0.485, 0.456, 0.406]
 transform_std = [0.229, 0.224, 0.225]
-# Class names come from the metadata: features.py writes them to class_names_path
+class_names = {0: "clean", 1: "defective"}  # must match the metadata's class/class_name columns
 
 
 
@@ -44,10 +44,6 @@ test_metadata_path = test_data_dir + "/metadata.csv"
 # Object store (public Hetzner bucket)
 s3_endpoint = "https://itudsip.hel1.your-objectstorage.com"
 s3_bucket = "data"
-base_url = f"{s3_endpoint}/{s3_bucket}"
-s3_image_prefix = "images/raw/"
-s3_test_prefix = "test/"
-download_max_workers = 8
 
 # Artifacts (relative to the project root)
 artifact_dir = "artifacts"
