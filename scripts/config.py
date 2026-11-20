@@ -30,12 +30,12 @@ original_image_size = (1600, 768)
 num_classes = 2
 transform_mean = [0.485, 0.456, 0.406]
 transform_std = [0.229, 0.224, 0.225]
-class_names={0:"good", 1:"defective"}
+class_names = {0: "clean", 1: "defective"}  # must match the metadata's class/class_name columns
 
 
 
 # Paths (relative to the project root)
-DATA_DIR = "data"
+data_dir = "data"
 image_data_dir = "./data/images/raw"
 metadata_path = "./data/images/metadata.csv"
 test_data_dir = "./data/test"
@@ -76,7 +76,7 @@ upstream_port = 5002
 upstream_host = "127.0.0.1"
 
 # Where the endpoint lives in production
-PROD_ENDPOINT = "https://mlops-itu-jtk.ondigitalocean.app"
+prod_endpoint = "https://mlops-itu-jtk.ondigitalocean.app"
 
 # Drift detection
 drift_default_days = 7

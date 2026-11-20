@@ -40,7 +40,7 @@ from scripts.config import (artifact_dir, artifact_path, batch_size, drift_basel
                             transform_std)
 
 from scripts.features import (
-    PROCESSED_DATA_DIR,
+    processed_data_dir,
     create_dataloaders,
     define_transforms,
     load_split,
@@ -776,7 +776,7 @@ def main(
 
     # Data: the splits made by the features step
     train_dataset, val_dataset, test_dataset = (
-        load_split(PROCESSED_DATA_DIR / f"{name}.csv") for name in ("train", "val", "test")
+        load_split(processed_data_dir / f"{name}.csv") for name in ("train", "val", "test")
     )
     train_transforms, val_transforms = define_transforms()
     train_loader, val_loader, test_loader = create_dataloaders(

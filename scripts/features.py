@@ -20,10 +20,10 @@ import typer
 
 from scripts import config
 
-ARTIFACTS_DIR = config.project_root / config.artifact_dir
-IMAGE_DATA_DIR = config.project_root / config.image_data_dir
-IMAGE_METADATA_PATH = config.project_root / config.metadata_path
-PROCESSED_DATA_DIR = config.project_root / config.DATA_DIR / "processed"
+artifacts_dir = config.project_root / config.artifact_dir
+image_data_dir = config.project_root / config.image_data_dir
+image_metadata_path = config.project_root / config.metadata_path
+processed_data_dir = config.project_root / config.data_dir / "processed"
 
 app = typer.Typer()
 
@@ -203,10 +203,10 @@ def load_split(path: Path) -> list[tuple[Path, int]]:
 
 @app.command()
 def main(
-    metadata_path: Path = IMAGE_METADATA_PATH,
-    image_dir: Path = IMAGE_DATA_DIR,
-    output_dir: Path = PROCESSED_DATA_DIR,
-    artifacts_dir: Path = ARTIFACTS_DIR,
+    metadata_path: Path = image_metadata_path,
+    image_dir: Path = image_data_dir,
+    output_dir: Path = processed_data_dir,
+    artifacts_dir: Path = artifacts_dir,
 ):
     """Split the images, save the splits to csv and save the dataset artifacts."""
     output_dir.mkdir(parents=True, exist_ok=True)
