@@ -14,7 +14,7 @@ min_date = "2024-01-01"
 # Training configuration
 num_epochs = 5
 batch_size = 32
-learning_rate = 0.0003
+learning_rate = 0.003
 threshold = 0.5
 early_stop_patience = 2
 scheduler_patience = 3
@@ -30,12 +30,12 @@ original_image_size = (1600, 768)
 num_classes = 2
 transform_mean = [0.485, 0.456, 0.406]
 transform_std = [0.229, 0.224, 0.225]
-class_names={0:"good", 1:"defective"}
+# Class names come from the metadata: features.py writes them to class_names_path
 
 
 
 # Paths (relative to the project root)
-DATA_DIR = "data"
+data_dir = "data"
 image_data_dir = "./data/images/raw"
 metadata_path = "./data/images/metadata.csv"
 test_data_dir = "./data/test"
@@ -44,7 +44,7 @@ test_metadata_path = test_data_dir + "/metadata.csv"
 # Object store (public Hetzner bucket)
 s3_endpoint = "https://itudsip.hel1.your-objectstorage.com"
 s3_bucket = "data"
-BASE_URL = f"{s3_endpoint}/{s3_bucket}"
+base_url = f"{s3_endpoint}/{s3_bucket}"
 s3_image_prefix = "images/raw/"
 s3_test_prefix = "test/"
 download_max_workers = 8
@@ -80,7 +80,7 @@ upstream_port = 5002
 upstream_host = "127.0.0.1"
 
 # Where the endpoint lives in production
-PROD_ENDPOINT = "https://mlops-itu-jtk.ondigitalocean.app"
+prod_endpoint = "https://mlops-itu-jtk.ondigitalocean.app"
 
 # Drift detection
 drift_default_days = 7
