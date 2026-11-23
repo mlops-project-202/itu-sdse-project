@@ -1,8 +1,9 @@
 package main // Every Go file
 
 import (
+	"dagger/itu-sdse-project/helpers"
 	"dagger/itu-sdse-project/internal/dagger"
-) // Pulls other Dagger types (structs)
+)
 
 const (
 	pythonImage    = "python:3.13-slim"
@@ -44,13 +45,12 @@ func (m *ItuSdseProject) Base() *dagger.Container {
 
 // runStage adds one "python -m <module> <args>" step to a container.
 func runStage(c *dagger.Container, module string, args ...string) (*dagger.Container, error) {
-	cmd, err := pythonModuleCmd(module, args...)
+	cmd, err := helpers.PythonModuleCmd(module, args...)
 	if err != nil {
 		return nil, err
 	}
 	return c.WithExec(cmd), nil
 }
-
 
 // PullData: metadata via DVC, then the images from the object store.
 func (m *ItuSdseProject) PullData() (*dagger.Container, error) {
@@ -72,7 +72,8 @@ func (m *ItuSdseProject) Train() (*dagger.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runStage(c, trainModule)}
+	return runStage(c, trainModule)
+}
 
 // Model: returns just the artifacts directory.
 func (m *ItuSdseProject) Model() (*dagger.Directory, error) {
