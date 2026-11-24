@@ -38,7 +38,6 @@ from scripts.config import (
     mlflow_state_dir,
     artifact_path,
     model_name,
-    model_path,
     model_results_path,
     port,
     project_root,
@@ -60,21 +59,26 @@ def _setup():
     """Common setup: run from the project root, point MLflow at the local state."""
     warnings.filterwarnings("ignore")
     os.chdir(project_root)
-    os.makedirs(artifact_path, exist_ok=True)
     os.makedirs(mlflow_state_dir, exist_ok=True)
 
 
 # Model selection
+# Models are compared on test macro F1, not on the defective-class F1: a model that
+# calls every vial "defective" still gets a high defective F1 (defective is the
+# majority class), but a low macro F1.
+selection_metric = "test_f1_macro"
+
+
 def get_best_run(experiment_name=experiment_name):
-    """Return the run of the experiment with the highest test F1-score."""
+    """Return the run of the experiment with the highest test macro F1-score."""
     experiment = mlflow.get_experiment_by_name(experiment_name)
     experiment_best = mlflow.search_runs(
         experiment_ids=[experiment.experiment_id],
-        order_by=["metrics.test_f1_score DESC"],
+        order_by=[f"metrics.{selection_metric} DESC"],
         max_results=1,
     ).iloc[0]
     logger.info(f"Best run: {experiment_best['run_id']}")
-    logger.info(f"Test F1-score: {experiment_best.get('metrics.test_f1_score')}")
+    logger.info(f"Test macro F1-score: {experiment_best.get(f'metrics.{selection_metric}')}")
     return experiment_best
 
 
@@ -108,16 +112,21 @@ def select_run_to_promote(experiment_best, production_model_uri, prod_model_run_
 
     Returns the run id to promote, or None if the production model should stay.
     """
-    train_model_score = experiment_best.get("metrics.test_f1_score")
-    if train_model_score is None:
-        train_model_score = experiment_best.get("metrics.f1_score")
+    train_model_score = experiment_best.get(f"metrics.{selection_metric}")
 
     if production_model_uri is None:
         logger.info("No model in production. The trained model will be promoted.")
         return experiment_best["run_id"]
 
-    prod_metrics = mlflow.get_run(prod_model_run_id).data.metrics
-    prod_model_score = prod_metrics.get("test_f1_score") or prod_metrics.get("f1_score")
+    prod_model_score = mlflow.get_run(prod_model_run_id).data.metrics.get(selection_metric)
+
+    if train_model_score is None or pd.isna(train_model_score):
+        logger.warning(f"No run has {selection_metric} logged. Keeping the production model.")
+        return None
+    if prod_model_score is None:
+        # Trained before macro F1 was logged, so it cannot be compared
+        logger.info(f"Production model has no {selection_metric}. Promoting the new model.")
+        return experiment_best["run_id"]
 
     logger.info(
         f"Comparing models: current best (training)={train_model_score}, "
@@ -437,7 +446,7 @@ def detect_drift(logs, days=drift_default_days, baseline_stats=None):
 
 # Serving
 # ---------------------------------------------------------------------------
-def start_scoring_server(model_path=model_path):
+def start_scoring_server(model_dir=export_dir):
     """Start the MLflow scoring server (the pyfunc model) on the internal port."""
     global _scoring_proc
 
@@ -449,7 +458,7 @@ def start_scoring_server(model_path=model_path):
     proc = subprocess.Popen(
         [
             sys.executable, "-m", "mlflow", "models", "serve",
-            "-m", str(model_path),
+            "-m", str(model_dir),
             "-p", str(upstream_port),
             "--workers", "1",
             "--host", upstream_host,
@@ -510,7 +519,7 @@ def health():
 @api.get("/version")
 def version():
     """Model version of the served model (watched by the monitoring platform)."""
-    version_file = Path(model_path) / "version.json"
+    version_file = Path(export_dir) / "version.json"
     if version_file.exists():
         with open(version_file) as f:
             return json.load(f)
@@ -520,12 +529,19 @@ def version():
 @api.post("/invocations")
 @api.post("/infer")
 async def invocations(request: Request):
-    """Forward the request unchanged to the scoring server."""
+    """Predict one image sent as the raw request body (e.g. image/jpeg), or forward
+    an MLflow JSON request ({"instances": [<base64 image>, ...]}) unchanged."""
     body = await request.body()
+    content_type = request.headers.get("content-type", "")
+    if not content_type.startswith("application/json"):
+        # The MLflow scoring server only accepts JSON/CSV/Parquet, so a binary
+        # image is wrapped as one base64 instance (the same format smoke_test sends)
+        body = json.dumps({"instances": [base64.b64encode(body).decode()]}).encode()
+        content_type = "application/json"
     req = urllib.request.Request(
         f"http://{upstream_host}:{upstream_port}/invocations",
         data=body,
-        headers={"Content-Type": request.headers.get("content-type", "application/json")},
+        headers={"Content-Type": content_type},
         method="POST",
     )
     try:
@@ -602,6 +618,10 @@ def export():
 def serve(host: str = "0.0.0.0", port: int = port):
     """Serve the exported model: scoring server subprocess + FastAPI wrapper (blocking)."""
     _setup()
+    # uvicorn re-raises SIGTERM after shutting down, which would kill this process
+    # before `finally` runs and leave the scoring server running on its port.
+    # Turning SIGTERM into a normal exit makes the cleanup below run.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     start_scoring_server()
     try:
         uvicorn.run(api, host=host, port=port, log_level="info")

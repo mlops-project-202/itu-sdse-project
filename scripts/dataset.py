@@ -90,32 +90,28 @@ def pull_data():
     download_files_from_metadata(metadata_path, image_data_dir, "images/raw/")
     download_files_from_metadata(test_metadata_path, test_data_dir, "test/")
 
-def load_image_dataset(metadata_path=metadata_path, image_data_dir=image_data_dir):
-    """Load (image_path, label) pairs from the raw images and the metadata."""
-    logger.info(f"Loading image dataset from {image_data_dir}")
-    logger.info(f"Using metadata from {metadata_path}")
-
+def load_image_dataset(
+    metadata_path=metadata_path, image_data_dir=image_data_dir
+) -> list[tuple[Path, int]]:
+    """(image_path, label) pairs for every metadata row whose image exists on disk."""
     if not Path(metadata_path).exists():
-        raise FileNotFoundError(f"Metadata file not found at {metadata_path}")
-
+        raise FileNotFoundError(
+            f"Metadata file not found at {metadata_path}. Run `python -m scripts.dataset pull` first."
+        )
     metadata = pd.read_csv(metadata_path)
-    logger.info(f"Metadata loaded. Total entries: {len(metadata)}")
 
     image_dataset = []
-    missing_files = []
-    for _, row in metadata.iterrows():
-        filename = row["filename"]
-        label = int(row["class"])
+    missing = 0
+    for filename, label in zip(metadata["filename"], metadata["class"]):
         image_path = Path(image_data_dir) / filename
         if image_path.exists():
-            image_dataset.append((image_path, label))
+            image_dataset.append((image_path, int(label)))
         else:
-            missing_files.append(filename)
+            missing += 1
 
-    logger.info(f"Loaded {len(image_dataset)} valid images with labels")
-    if missing_files:
-        logger.warning(f"{len(missing_files)} image files not found")
-
+    logger.info(f"Loaded {len(image_dataset)} labelled images from {image_data_dir}")
+    if missing:
+        logger.warning(f"{missing} image files listed in {metadata_path} were not found")
     return image_dataset
 
 

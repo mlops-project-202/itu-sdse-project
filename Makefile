@@ -59,10 +59,24 @@ create_environment:
 #################################################################################
 
 
-## Make dataset
+## Download the metadata (DVC) and the images
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) scripts/dataset.py
+	$(PYTHON_INTERPRETER) -m scripts.dataset pull
+
+## Make the train/val/test splits and dataset artifacts
+.PHONY: features
+features:
+	$(PYTHON_INTERPRETER) -m scripts.features
+
+## Train, evaluate, register and export the model
+.PHONY: train
+train:
+	$(PYTHON_INTERPRETER) -m scripts.modeling.train
+
+## Run the whole pipeline: data, features, train
+.PHONY: pipeline
+pipeline: data features train
 
 
 #################################################################################
