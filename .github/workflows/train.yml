@@ -15,7 +15,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Dagger
-        run: curl -fsSL https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=0.21.10 BIN_DIR=/usr/local/bin sudo -E sh
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=0.21.10 BIN_DIR=$HOME/.local/bin sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          $HOME/.local/bin/dagger version
 
       - name: Run the pipeline # pull data, features, train
         run: dagger --progress=plain call model export --path model
