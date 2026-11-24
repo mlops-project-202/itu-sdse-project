@@ -1,0 +1,31 @@
+name: Train model
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Install Dagger
+        run: curl -fsSL https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=0.21.10 BIN_DIR=/usr/local/bin sudo -E sh
+
+      - name: Run the pipeline # pull data, features, train
+        run: dagger --progress=plain call model export --path model
+
+      - name: Upload the model artifact
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: model
+          path: model/
+
+  test:
+    needs: train
+    uses: ./.github/workflows/test.yml
