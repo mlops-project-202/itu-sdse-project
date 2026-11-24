@@ -30,6 +30,13 @@ properties:
     # single ingress that sends ALL paths (/invocations, /infer, /health,
     # /drift) to the container with the path intact, so the DO ingress rules
     # are no longer needed.
+    secrets:
+      - name: ghcr-token
+        value: __GHCR_TOKEN__
+    registries:
+      - server: ghcr.io
+        username: __OWNER__
+        passwordSecretRef: ghcr-token
     ingress:
       external: true        # public URL
       targetPort: 5001      # must match the port uvicorn listens on
