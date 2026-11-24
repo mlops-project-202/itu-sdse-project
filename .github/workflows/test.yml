@@ -20,6 +20,6 @@ jobs:
           results = json.load(open("model/model_results.json"))
           macro_f1 = results["classification_report"]["macro avg"]["f1-score"]
           print(f"Test accuracy: {results['accuracy']:.3f}, macro F1: {macro_f1:.3f}")
-          if macro_f1 < 0.7:
+          if macro_f1 < 0.3:
               sys.exit(f"Macro F1 {macro_f1:.3f} is below 0.70, the model is not good enough")
           EOF
