@@ -1,8 +1,17 @@
 package main // Every Go file
 
 import (
+	"dagger/itu-sdse-project/helpers"
 	"dagger/itu-sdse-project/internal/dagger"
-) // Pulls other Dagger types (structs)
+)
+
+const (
+	pythonImage    = "python:3.13-slim"
+	datasetModule  = "scripts.dataset"
+	featuresModule = "scripts.features"
+	trainModule    = "scripts.modeling.train"
+	artifactsDir   = "/app/artifacts"
+)
 
 type ItuSdseProject struct {
 	Source *dagger.Directory
@@ -13,7 +22,7 @@ func New(
 	// downloads/trains for real. .git stays in: DVC needs it to fetch the
 	// imported metadata CSVs.
 	// +defaultPath="/"
-	// +ignore=["data/images/raw", "data/test/*.jpg", "data/processed", "artifacts", "mlflow-state", "models/model", "model_pyfunc", ".dvc/cache", ".dvc/tmp", "**/__pycache__", ".ruff_cache", ".venv", "dagger"]
+	// +ignore=["data/images/raw", "data/test/*.jpg", "data/processed", "artifacts", "mlflow-state", "models/model", "model_pyfunc", ".dvc/tmp", "**/__pycache__", ".ruff_cache", ".venv", "dagger"]
 	source *dagger.Directory,
 ) *ItuSdseProject {
 	return &ItuSdseProject{Source: source}
@@ -34,25 +43,43 @@ func (m *ItuSdseProject) Base() *dagger.Container {
 		WithExec([]string{"pip", "install", "-r", "requirements.txt"})
 }
 
+// runStage adds one "python -m <module> <args>" step to a container.
+func runStage(c *dagger.Container, module string, args ...string) (*dagger.Container, error) {
+	cmd, err := helpers.PythonModuleCmd(module, args...)
+	if err != nil {
+		return nil, err
+	}
+	return c.WithExec(cmd), nil
+}
+
 // PullData: metadata via DVC, then the images from the object store.
-func (m *ItuSdseProject) PullData() *dagger.Container {
-	return m.Base().
-		WithExec([]string{"python", "-m", "scripts.dataset", "pull"})
+func (m *ItuSdseProject) PullData() (*dagger.Container, error) {
+	return runStage(m.Base(), datasetModule, "pull")
 }
 
 // Features: train/val/test splits and the dataset artifacts.
-func (m *ItuSdseProject) Features() *dagger.Container {
-	return m.PullData().
-		WithExec([]string{"python", "-m", "scripts.features"})
+func (m *ItuSdseProject) Features() (*dagger.Container, error) {
+	c, err := m.PullData()
+	if err != nil {
+		return nil, err
+	}
+	return runStage(c, featuresModule)
 }
 
 // Train: trains, evaluates and registers the model on top of the features.
-func (m *ItuSdseProject) Train() *dagger.Container {
-	return m.Features().
-		WithExec([]string{"python", "-m", "scripts.modeling.train"})
+func (m *ItuSdseProject) Train() (*dagger.Container, error) {
+	c, err := m.Features()
+	if err != nil {
+		return nil, err
+	}
+	return runStage(c, trainModule)
 }
 
 // Model: returns just the artifacts directory.
-func (m *ItuSdseProject) Model() *dagger.Directory {
-	return m.Train().Directory("/app/artifacts")
+func (m *ItuSdseProject) Model() (*dagger.Directory, error) {
+	c, err := m.Train()
+	if err != nil {
+		return nil, err
+	}
+	return c.Directory(artifactsDir), nil
 }
