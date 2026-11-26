@@ -33,8 +33,7 @@ import typer
 
 from scripts.config import (artifact_dir, artifact_path, batch_size, drift_baseline_stats_path,
                             early_stop_patience, experiment_name, image_size, inference_log_path,
-                            learning_rate, mlflow_artifact_location, mlflow_state_dir,
-                            mlflow_tracking_uri, model_name, model_results_path,
+                            learning_rate, model_name, model_results_path,
                             num_classes, num_epochs, project_root, pytorch_model_path, random_state,
                             scheduler_patience, threshold, training_run_name, transform_mean,
                             transform_std)
@@ -299,6 +298,8 @@ def evaluate_cnn_model(model, test_loader, device=device, threshold=threshold):
 
     accuracy = accuracy_score(all_labels, all_preds)
     f1 = f1_score(all_labels, all_preds, average='binary')
+    # Macro F1 weighs both classes equally; this is what models are compared on
+    f1_macro = f1_score(all_labels, all_preds, average='macro')
     precision = precision_score(all_labels, all_preds, average='binary')
     recall = recall_score(all_labels, all_preds, average='binary')
     roc_auc = roc_auc_score(all_labels, all_probs)
@@ -307,7 +308,8 @@ def evaluate_cnn_model(model, test_loader, device=device, threshold=threshold):
     class_report = classification_report(all_labels, all_preds, output_dict=True)
 
     logger.info(
-        f"Test set: Accuracy={accuracy:.4f} | F1={f1:.4f} | Precision={precision:.4f} | "
+        f"Test set: Accuracy={accuracy:.4f} | F1={f1:.4f} | Macro F1={f1_macro:.4f} | "
+        f"Precision={precision:.4f} | "
         f"Recall={recall:.4f} | ROC-AUC={roc_auc:.4f}"
     )
     logger.info(f"Confusion matrix [[TN, FP], [FN, TP]] = {conf_matrix.tolist()}")
@@ -315,6 +317,7 @@ def evaluate_cnn_model(model, test_loader, device=device, threshold=threshold):
 
     mlflow.log_metric("test_accuracy", accuracy)
     mlflow.log_metric("test_f1_score", f1)
+    mlflow.log_metric("test_f1_macro", f1_macro)
     mlflow.log_metric("test_precision", precision)
     mlflow.log_metric("test_recall", recall)
     mlflow.log_metric("test_roc_auc", roc_auc)
@@ -322,6 +325,7 @@ def evaluate_cnn_model(model, test_loader, device=device, threshold=threshold):
     return {
         "accuracy": accuracy,
         "f1_score": f1,
+        "f1_macro": f1_macro,
         "precision": precision,
         "recall": recall,
         "roc_auc": roc_auc,
@@ -638,9 +642,15 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
                 confidences.append(round(float(prob), 4))
                 raw_outputs.append(round(float(prob), 4))
 
-                image_identifier = (
-                    "<bytes>" if isinstance(image_input, bytes) else str(image_input)
-                )
+                # Log file paths as they are, but not whole images (base64 strings are ~100 KB)
+                if isinstance(image_input, Path) or (
+                    isinstance(image_input, str) and len(image_input) < 1024
+                ):
+                    image_identifier = str(image_input)
+                elif isinstance(image_input, bytes):
+                    image_identifier = "<bytes>"
+                else:
+                    image_identifier = "<base64 image>"
                 self._log_request(
                     {
                         "timestamp": timestamp,
@@ -652,7 +662,7 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
                 )
 
             except Exception as e:
-                print(f"Error processing image {image_input}: {e}")
+                print(f"Error processing image {str(image_input)[:100]}: {e}")
                 predictions.append(None)
                 confidences.append(None)
                 raw_outputs.append(None)
@@ -828,6 +838,7 @@ def main(
     logger.info(f"  Test samples: {len(test_loader.dataset)}")
     logger.info(f"  Optimal threshold: {optimal_threshold:.4f}")
     logger.info(f"  Test F1-score: {test_results['f1_score']:.4f}")
+    logger.info(f"  Test macro F1-score: {test_results['f1_macro']:.4f}")
     logger.info(f"  Registered model: {model_name} version {model_details.version} (Staging)")
 
     export()

@@ -11,6 +11,8 @@ const (
 	featuresModule = "scripts.features"
 	trainModule    = "scripts.modeling.train"
 	artifactsDir   = "/app/artifacts"
+	// The servable MLflow model that the training step exports (config.export_dir)
+	servingModelDir = "/app/models/model"
 )
 
 type ItuSdseProject struct {
@@ -75,11 +77,13 @@ func (m *ItuSdseProject) Train() (*dagger.Container, error) {
 	return runStage(c, trainModule)
 }
 
-// Model: returns just the artifacts directory.
+// Model: the artifacts directory, plus the servable MLflow model in mlflow_model/
+// (what the serving container needs).
 func (m *ItuSdseProject) Model() (*dagger.Directory, error) {
 	c, err := m.Train()
 	if err != nil {
 		return nil, err
 	}
-	return c.Directory(artifactsDir), nil
+	return c.Directory(artifactsDir).
+		WithDirectory("mlflow_model", c.Directory(servingModelDir)), nil
 }

@@ -8,9 +8,6 @@ load_dotenv()
 
 project_root=Path(__file__).resolve().parents[1]
 
-max_date = "2024-01-31"
-min_date = "2024-01-01"
-
 # Training configuration
 num_epochs = 5
 batch_size = 32
@@ -26,7 +23,6 @@ test_ratio=0.15
 
 # Image specifications
 image_size = (64, 64)
-original_image_size = (1600, 768)
 num_classes = 2
 transform_mean = [0.485, 0.456, 0.406]
 transform_std = [0.229, 0.224, 0.225]
@@ -66,9 +62,9 @@ artifact_path = "model_pyfunc"
 training_run_name = "training_notebook"
 
 # deployment
-# Where the exported servable model goes (this is what gets baked into the Docker image)
+# Where the exported servable model goes, and where serving loads it from
+# (this is what gets baked into the Docker image)
 export_dir = "models/model"
-model_path = export_dir
 
 # Serving ports
 port = 5001
