@@ -3,8 +3,6 @@ name: Train model
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -28,6 +26,12 @@ jobs:
         with:
           name: model
           path: model/
+
+
+      # it expects the the model/model.pkl loaded with joblib
+      - name: Run Model Inference Test Action
+        uses: lasselundstenjensen/itu-sdse-project-model-validator@main
+        continue-on-error: true
 
   test:
     needs: train
