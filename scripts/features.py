@@ -19,8 +19,10 @@ from torchvision import transforms
 import typer
 
 from scripts import config
+from scripts.dataset import load_image_dataset
 
-artifacts_dir = config.project_root / config.artifact_dir
+class_names_path = config.project_root / config.class_names_path
+image_statistics_path = config.project_root / config.image_statistics_path
 image_data_dir = config.project_root / config.image_data_dir
 image_metadata_path = config.project_root / config.metadata_path
 processed_data_dir = config.project_root / config.data_dir / "processed"
@@ -101,23 +103,6 @@ class GlassVialDataset(Dataset):
             image = self.transform(image)
 
         return image, self.labels[idx]
-
-
-def load_image_dataset(metadata: pd.DataFrame, image_dir: Path) -> list[tuple[Path, int]]:
-    """(image_path, label) pairs for every metadata row whose image exists on disk."""
-    image_dataset = []
-    missing = 0
-    for filename, label in zip(metadata["filename"], metadata["class"]):
-        image_path = Path(image_dir) / filename
-        if image_path.exists():
-            image_dataset.append((image_path, int(label)))
-        else:
-            missing += 1
-
-    logger.info(f"Loaded {len(image_dataset)} labelled images from {image_dir}")
-    if missing:
-        logger.warning(f"{missing} image files listed in the metadata were not found")
-    return image_dataset
 
 
 def split_dataset(
@@ -206,16 +191,18 @@ def main(
     metadata_path: Path = image_metadata_path,
     image_dir: Path = image_data_dir,
     output_dir: Path = processed_data_dir,
-    artifacts_dir: Path = artifacts_dir,
+    class_names_path: Path = class_names_path,
+    stats_path: Path = image_statistics_path,
 ):
     """Split the images, save the splits to csv and save the dataset artifacts."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    class_names_path.parent.mkdir(parents=True, exist_ok=True)
+    stats_path.parent.mkdir(parents=True, exist_ok=True)
 
     metadata = pd.read_csv(metadata_path)
-    save_class_names(metadata, artifacts_dir / "class_names.json")
+    save_class_names(metadata, class_names_path)
 
-    image_dataset = load_image_dataset(metadata, image_dir)
+    image_dataset = load_image_dataset(metadata_path, image_dir)
     splits = split_dataset(image_dataset)
     for name, split in zip(("train", "val", "test"), splits):
         save_split(split, output_dir / f"{name}.csv")
@@ -224,7 +211,6 @@ def main(
     # Statistics of the real training images: no augmentation, so they are the same every run
     _, val_transforms = define_transforms()
     image_stats = calculate_image_statistics(make_dataloader(splits[0], val_transforms))
-    stats_path = artifacts_dir / "image_statistics.json"
     with open(stats_path, "w") as f:
         json.dump(image_stats, f, indent=2)
     logger.info(f"Image statistics saved to {stats_path}")
