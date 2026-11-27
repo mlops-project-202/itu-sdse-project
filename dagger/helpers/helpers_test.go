@@ -21,6 +21,15 @@ func TestPythonModuleCmd(t *testing.T) {
 		{"Shell metacharacters", "foo; rm -rf /", nil, nil, true},
 		{"Starts with digit", "1abc", nil, nil, true},
 		{"Trailing dot", "foo.", nil, nil, true},
+
+		// new cases
+		{"Underscore and digits", "my_pkg2.mod_1", nil, []string{"python", "-m", "my_pkg2.mod_1"}, false},
+		{"Multiple args", "scripts.dataset", []string{"pull", "--force"}, []string{"python", "-m", "scripts.dataset", "pull", "--force"}, false},
+		{"Leading dot", ".foo", nil, nil, true},
+		{"Double dot", "foo..bar", nil, nil, true},
+		{"Hyphen in name", "foo-bar", nil, nil, true},
+		{"Newline in name", "foo\nbar", nil, nil, true},
+		{"Trailing newline", "foo\n", nil, nil, true},
 	}
 
 	for _, tc := range testCases {
@@ -41,5 +50,14 @@ func TestPythonModuleCmd(t *testing.T) {
 					tc.expectValue, out, tc.value, tc.args)
 			}
 		})
+	}
+}
+
+func TestPythonModuleCmdReturnsIndependentSlices(t *testing.T) {
+	a, _ := PythonModuleCmd("scripts.dataset", "pull")
+	b, _ := PythonModuleCmd("scripts.dataset", "pull")
+	a[0] = "changed"
+	if b[0] != "python" {
+		t.Errorf("results share memory: got %v", b)
 	}
 }
