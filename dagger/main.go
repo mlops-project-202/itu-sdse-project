@@ -7,9 +7,6 @@ import (
 
 const (
 	pythonImage    = "python:3.13-slim"
-	datasetModule  = "scripts.dataset"
-	featuresModule = "scripts.features"
-	trainModule    = "scripts.modeling.train"
 	artifactsDir   = "/app/artifacts"
 	// The servable MLflow model that the training step exports (config.export_dir)
 	servingModelDir = "/app/models/model"
@@ -24,7 +21,7 @@ func New(
 	// downloads/trains for real. .git stays in: DVC needs it to fetch the
 	// imported metadata CSVs.
 	// +defaultPath="/"
-	// +ignore=["data/images/raw", "data/test/*.jpg", "data/processed", "artifacts", "mlflow-state", "models/model", "model_pyfunc", ".dvc/tmp", "**/__pycache__", ".ruff_cache", ".venv", "dagger"]
+	// +ignore=["data/images/raw", "data/test/*.jpg", "data/test/metadata.csv", "data/processed", "artifacts", "mlflow-state", "models/model", "model_pyfunc", ".dvc/tmp", "**/__pycache__", ".ruff_cache", ".venv", "dagger"]
 	source *dagger.Directory,
 ) *ItuSdseProject {
 	return &ItuSdseProject{Source: source}
@@ -56,7 +53,7 @@ func runStage(c *dagger.Container, module string, args ...string) (*dagger.Conta
 
 // PullData: metadata via DVC, then the images from the object store.
 func (m *ItuSdseProject) PullData() (*dagger.Container, error) {
-	return runStage(m.Base(), datasetModule, "pull")
+	return runStage(m.Base(), helpers.DatasetModule, "pull")
 }
 
 // Features: train/val/test splits and the dataset artifacts.
@@ -65,7 +62,7 @@ func (m *ItuSdseProject) Features() (*dagger.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runStage(c, featuresModule)
+	return runStage(c, helpers.FeaturesModule)
 }
 
 // Train: trains, evaluates and registers the model on top of the features.
@@ -74,7 +71,7 @@ func (m *ItuSdseProject) Train() (*dagger.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runStage(c, trainModule)
+	return runStage(c, helpers.TrainModule)
 }
 
 // Model: the artifacts directory, plus the servable MLflow model in mlflow_model/
