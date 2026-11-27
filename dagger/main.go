@@ -3,6 +3,7 @@ package main // Every Go file
 import (
 	"dagger/itu-sdse-project/helpers"
 	"dagger/itu-sdse-project/internal/dagger"
+	context
 )
 
 const (
@@ -83,4 +84,21 @@ func (m *ItuSdseProject) Model() (*dagger.Directory, error) {
 	}
 	return c.Directory(artifactsDir).
 		WithDirectory("mlflow_model", c.Directory(servingModelDir)), nil
+}
+
+func (m *ItuSdseProject) PublishServe(ctx context.Context, src *dagger.Directory,
+    owner string, tag string, token *dagger.Secret) (string, error) {
+    return dag.Container().
+        From("python:3.13-slim").
+        WithWorkdir("/app").
+        WithFile("requirements-serve.txt", src.File("docker/requirements-serve.txt")).
+        WithExec([]string{"pip", "install", "--extra-index-url",
+            "https://download.pytorch.org/whl/cpu", "-r", "requirements-serve.txt"}).
+        WithDirectory("scripts", src.Directory("scripts")).
+        WithDirectory("models/model", src.Directory("models/model")).
+        WithFile("artifacts/drift_baseline_stats.json", src.File("artifacts/drift_baseline_stats.json")).
+        WithExposedPort(5001).
+        WithEntrypoint([]string{"python", "-m", "scripts.modeling.predict", "serve"}).
+        WithRegistryAuth("ghcr.io", owner, token).
+        Publish(ctx, "ghcr.io/"+owner+"/model-serve:"+tag)
 }
